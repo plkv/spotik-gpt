@@ -12,6 +12,22 @@ CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/callback")
 TOKENS = {}
 
+def refresh_access_token(user_id):
+    refresh_token = TOKENS[user_id]["refresh_token"]
+    response = requests.post("https://accounts.spotify.com/api/token", data={
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET
+    })
+    data = response.json()
+    access_token = data.get("access_token")
+    if access_token:
+        TOKENS[user_id]["access_token"] = access_token
+        return access_token
+    return None
+
+
 def extract_playlist_id(input_str):
 
 def refresh_access_token(user_id):
