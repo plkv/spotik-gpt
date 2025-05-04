@@ -440,10 +440,12 @@ def recommend_new():
     # Рекомендации от Spotify
     seed_type = seed_uri.split(":")[1]
     seed_id = seed_uri.split(":")[-1]
-    rec_url = f"https://api.spotify.com/v1/recommendations"
-if seed_type not in ["track", "artist", "genre"]:
-    return jsonify({"error": "Unsupported seed type"}), 400
+    rec_url = "https://api.spotify.com/v1/recommendations"
 
+    if seed_type not in ["track", "artist", "genre"]:
+        return jsonify({"error": "Unsupported seed type"}), 400
+
+    params = {f"seed_{seed_type}s": seed_id, "limit": 50}
     recs = requests.get(rec_url, headers=headers, params=params).json()
 
     new_tracks = [t for t in recs.get("tracks", []) if t["uri"] not in all_uris]
@@ -453,8 +455,3 @@ if seed_type not in ["track", "artist", "genre"]:
         "recommended": uris,
         "excluded_duplicates": len(recs.get("tracks", [])) - len(uris)
     })
-
-
-
-
-
