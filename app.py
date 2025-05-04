@@ -399,6 +399,8 @@ def remove_duplicates():
             tracks.extend(data.get("items", []))
             url = data.get("next")
 
+        logger.info(f"Found {len(tracks)} total tracks in playlist")
+
         # Create a dictionary to track seen tracks and their positions
         seen = {}
         duplicates = []
@@ -414,14 +416,20 @@ def remove_duplicates():
                     "uri": track["uri"],
                     "positions": [i]
                 })
+                logger.info(f"Found duplicate: {track['name']} by {track['artists'][0]['name']}")
             else:
                 # First time seeing this track, keep it
                 seen[key] = i
+                logger.info(f"Keeping track: {track['name']} by {track['artists'][0]['name']}")
 
         if not duplicates:
+            logger.info("No duplicates found in playlist")
             return jsonify({"message": "No duplicates found"})
 
+        logger.info(f"Found {len(duplicates)} duplicates to remove")
+
         # Remove duplicates in batches of 100
+        removed_count = 0
         for i in range(0, len(duplicates), 100):
             batch = duplicates[i:i + 100]
             payload = {"tracks": batch}
@@ -431,12 +439,26 @@ def remove_duplicates():
                 json=payload
             )
             response.raise_for_status()
+            removed_count += len(batch)
             logger.info(f"Removed batch of {len(batch)} duplicate tracks")
+
+        # Verify the final state
+        final_tracks = []
+        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        while url:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            final_tracks.extend(data.get("items", []))
+            url = data.get("next")
+
+        logger.info(f"Final playlist state: {len(final_tracks)} tracks remaining")
 
         return jsonify({
             "status": "success",
-            "removed_count": len(duplicates),
-            "message": f"Removed {len(duplicates)} duplicate tracks while keeping one copy of each"
+            "removed_count": removed_count,
+            "remaining_tracks": len(final_tracks),
+            "message": f"Removed {removed_count} duplicate tracks while keeping one copy of each"
         })
     except requests.exceptions.RequestException as e:
         logger.error(f"Network error in remove_duplicates: {str(e)}")
