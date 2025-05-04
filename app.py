@@ -328,7 +328,7 @@ def recreate_playlist():
         for item in items:
             track = item.get("track")
             if not track:
-            print("Пропущен трек:", item)
+                print("Пропущен трек:", item)
             continue
             name = track.get("name")
             artist = track["artists"][0]["name"] if track.get("artists") else ""
@@ -570,5 +570,3 @@ def recommend_new():
         "recommended": uris,
         "excluded_duplicates": len(recs.get("tracks", [])) - len(uris)
     })
-
-
