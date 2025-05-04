@@ -401,83 +401,90 @@ def remove_duplicates():
 
         logger.info(f"Found {len(tracks)} total tracks in playlist")
 
-        # First pass: identify duplicates and keep track of which positions to keep
-        seen = {}
-        positions_to_remove = []
+        # First pass: identify unique tracks and their first occurrence
+        unique_tracks = {}
         for i, item in enumerate(tracks):
             track = item.get("track")
             if not track:
                 continue
                 
             key = (track["name"], track["artists"][0]["name"] if track["artists"] else None)
-            if key in seen:
-                # This is a duplicate, mark it for removal
-                positions_to_remove.append(i)
-                logger.info(f"Marking duplicate for removal: {track['name']} by {track['artists'][0]['name']} at position {i}")
-            else:
-                # First time seeing this track, keep it
-                seen[key] = i
+            if key not in unique_tracks:
+                unique_tracks[key] = {
+                    "uri": track["uri"],
+                    "position": i
+                }
                 logger.info(f"Keeping track: {track['name']} by {track['artists'][0]['name']} at position {i}")
 
-        if not positions_to_remove:
-            logger.info("No duplicates found in playlist")
-            return jsonify({"message": "No duplicates found"})
+        # Create a new playlist with only unique tracks
+        # Get user profile
+        me_response = requests.get("https://api.spotify.com/v1/me", headers=headers)
+        me_response.raise_for_status()
+        user_profile = me_response.json()
 
-        logger.info(f"Found {len(positions_to_remove)} duplicates to remove")
-
-        # Remove duplicates by position
-        # We need to remove from highest position to lowest to maintain correct indices
-        positions_to_remove.sort(reverse=True)
-        
-        # Create the removal payload
-        # Spotify API expects positions to be relative to the current state
-        # So we need to adjust positions after each removal
-        adjusted_positions = []
-        for pos in positions_to_remove:
-            # Count how many positions we've already removed that are after this one
-            adjustment = sum(1 for p in adjusted_positions if p > pos)
-            adjusted_positions.append(pos - adjustment)
-
-        removal_payload = {
-            "tracks": [
-                {"uri": tracks[pos]["track"]["uri"], "positions": [adjusted_positions[i]]}
-                for i, pos in enumerate(positions_to_remove)
-            ]
+        # Create new playlist
+        create_payload = {
+            "name": "Temporary Playlist",
+            "description": "Temporary playlist for duplicate removal",
+            "public": False
         }
+        create_response = requests.post(
+            f"https://api.spotify.com/v1/users/{user_profile['id']}/playlists",
+            headers=headers,
+            json=create_payload
+        )
+        create_response.raise_for_status()
+        temp_playlist = create_response.json()
+        logger.info(f"Created temporary playlist: {temp_playlist['id']}")
 
-        logger.info(f"Removal payload: {removal_payload}")
+        # Add unique tracks to the new playlist
+        unique_uris = [track["uri"] for track in unique_tracks.values()]
+        for i in range(0, len(unique_uris), 100):
+            batch = unique_uris[i:i + 100]
+            add_response = requests.post(
+                f"https://api.spotify.com/v1/playlists/{temp_playlist['id']}/tracks",
+                headers=headers,
+                json={"uris": batch}
+            )
+            add_response.raise_for_status()
+            logger.info(f"Added batch of {len(batch)} tracks to temporary playlist")
 
-        # Remove duplicates
-        response = requests.delete(
+        # Clear the original playlist
+        clear_response = requests.put(
             f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
             headers=headers,
-            json=removal_payload
+            json={"uris": []}
         )
-        
-        if not response.ok:
-            logger.error(f"Failed to remove tracks: {response.status_code} - {response.text}")
-            return jsonify({"error": "Failed to remove tracks"}), response.status_code
-            
-        response.raise_for_status()
-        logger.info(f"Removed {len(positions_to_remove)} duplicate tracks")
+        clear_response.raise_for_status()
+        logger.info("Cleared original playlist")
 
-        # Verify the final state
-        final_tracks = []
-        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
-        while url:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            final_tracks.extend(data.get("items", []))
-            url = data.get("next")
+        # Add tracks back to original playlist
+        for i in range(0, len(unique_uris), 100):
+            batch = unique_uris[i:i + 100]
+            add_response = requests.post(
+                f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
+                headers=headers,
+                json={"uris": batch}
+            )
+            add_response.raise_for_status()
+            logger.info(f"Added batch of {len(batch)} tracks back to original playlist")
 
-        logger.info(f"Final playlist state: {len(final_tracks)} tracks remaining")
+        # Delete temporary playlist
+        delete_response = requests.delete(
+            f"https://api.spotify.com/v1/playlists/{temp_playlist['id']}/followers",
+            headers=headers
+        )
+        delete_response.raise_for_status()
+        logger.info("Deleted temporary playlist")
+
+        removed_count = len(tracks) - len(unique_tracks)
+        logger.info(f"Removed {removed_count} duplicate tracks")
 
         return jsonify({
             "status": "success",
-            "removed_count": len(positions_to_remove),
-            "remaining_tracks": len(final_tracks),
-            "message": f"Removed {len(positions_to_remove)} duplicate tracks while keeping one copy of each"
+            "removed_count": removed_count,
+            "remaining_tracks": len(unique_tracks),
+            "message": f"Removed {removed_count} duplicate tracks while keeping one copy of each"
         })
     except requests.exceptions.RequestException as e:
         logger.error(f"Network error in remove_duplicates: {str(e)}")
