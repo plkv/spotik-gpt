@@ -13,11 +13,10 @@ REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/c
 TOKENS = {}
 
 def extract_playlist_id(input_str):
-    # Если это ссылка, вытащим ID плейлиста из неё
     match = re.search(r"playlist/([a-zA-Z0-9]+)", input_str)
     if match:
         return match.group(1)
-    return input_str  # если это уже ID
+    return input_str
 
 SCOPES = "user-read-private playlist-modify-public playlist-modify-private playlist-read-private user-library-read user-top-read"
 
@@ -242,6 +241,63 @@ def remove_duplicates():
 
     return jsonify({"status": "removed", "response": r.json()})
 
+@app.route("/recreate-playlist", methods=["POST"])
+def recreate_playlist():
+    data = request.get_json()
+    user_id = data.get("user_id")
+    playlist_input = data.get("playlist_id")
+
+    if not user_id or not playlist_input or user_id not in TOKENS:
+        return jsonify({"error": "Missing user_id or playlist_id, or user not authorized"}), 400
+
+    playlist_id = extract_playlist_id(playlist_input)
+    access_token = TOKENS[user_id]["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    # Получим треки из оригинального плейлиста
+    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+    tracks = []
+    while url:
+        res = requests.get(url, headers=headers).json()
+        items = res.get("items", [])
+        for item in items:
+            track = item.get("track")
+            if not track:
+            print("Пропущен трек:", item)
+            continue
+            name = track.get("name")
+            artist = track["artists"][0]["name"] if track.get("artists") else ""
+            query = f"track:{name} artist:{artist}"
+            search_url = "https://api.spotify.com/v1/search"
+            params = {"q": query, "type": "track", "limit": 1}
+            search_res = requests.get(search_url, headers=headers, params=params).json()
+            if "error" in search_res:
+                print("Ошибка поиска:", search_res["error"])
+            found_tracks = search_res.get("tracks", {}).get("items", [])
+            if found_tracks:
+                tracks.append(found_tracks[0]["uri"])
+        url = res.get("next")
+
+    # Получим имя оригинального плейлиста
+    pl_info = requests.get(f"https://api.spotify.com/v1/playlists/{playlist_id}", headers=headers).json()
+    new_name = f"{pl_info.get('name')} (Recreated)"
+
+    # Создадим новый плейлист
+    create_url = f"https://api.spotify.com/v1/users/{user_id}/playlists"
+    body = {"name": new_name, "public": False}
+    new_pl = requests.post(create_url, headers=headers, json=body).json()
+    new_pl_id = new_pl.get("id")
+
+    # Добавим найденные треки
+    if new_pl_id and tracks:
+        for i in range(0, len(tracks), 100):
+            chunk = tracks[i:i+100]
+            add_url = f"https://api.spotify.com/v1/playlists/{new_pl_id}/tracks"
+            requests.post(add_url, headers=headers, json={"uris": chunk})
+
+    return jsonify({"new_playlist_id": new_pl_id, "tracks_added": len(tracks)})
+
+
 @app.route("/health")
 def health():
     return "OK", 200
@@ -286,41 +342,6 @@ def shuffle_smart():
 
     return jsonify({"status": "shuffled", "total": len(all_tracks)})
 
-@app.route("/shuffle-smart", methods=["POST"])
-def shuffle_smart():
-    data = request.get_json()
-    user_id = data.get("user_id")
-    playlist_id = data.get("playlist_id")
-
-    if not user_id or not playlist_id or user_id not in TOKENS:
-        return jsonify({"error": "Missing user_id or playlist_id, or user not authorized"}), 400
-
-    access_token = TOKENS[user_id]["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
-    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
-
-    all_tracks = []
-    while url:
-        r = requests.get(url, headers=headers)
-        data = r.json()
-        items = data.get("items", [])
-        for item in items:
-            track = item.get("track")
-            if track:
-                all_tracks.append(track["uri"])
-        url = data.get("next")
-
-    import random
-    random.shuffle(all_tracks)
-
-    delete_payload = {"tracks": [{"uri": uri} for uri in all_tracks]}
-    requests.delete(f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks", headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}, json=delete_payload)
-
-    add_chunks = [all_tracks[i:i+100] for i in range(0, len(all_tracks), 100)]
-    for chunk in add_chunks:
-        requests.post(f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks", headers=headers, json={"uris": chunk})
-
-    return jsonify({"status": "shuffled", "total": len(all_tracks)})
 
 @app.route("/generate-playlist", methods=["POST"])
 def generate_playlist():
