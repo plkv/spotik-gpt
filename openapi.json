@@ -66,7 +66,7 @@
     "/remove-duplicates": {
       "post": {
         "operationId": "removeDuplicates",
-        "summary": "Remove duplicate tracks from a playlist",
+        "summary": "Remove duplicate tracks from a playlist while keeping one copy of each",
         "requestBody": {
           "required": true,
           "content": {
@@ -75,18 +75,34 @@
                 "type": "object",
                 "properties": {
                   "user_id": { "type": "string" },
-                  "playlist_id": { "type": "string" },
-                  "uris": {
-                    "type": "array",
-                    "items": { "type": "string" }
-                  }
+                  "playlist_id": { "type": "string" }
                 },
-                "required": ["user_id", "playlist_id", "uris"]
+                "required": ["user_id", "playlist_id"]
               }
             }
           }
         },
-        "responses": { "200": { "description": "Duplicates removed successfully" } }
+        "responses": {
+          "200": {
+            "description": "Duplicates removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "removed_count": { "type": "integer" },
+                    "remaining_tracks": { "type": "integer" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing required parameters" },
+          "401": { "description": "User not authorized" },
+          "500": { "description": "Server error" }
+        }
       }
     },
     "/shuffle-smart": {

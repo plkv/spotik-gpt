@@ -437,12 +437,19 @@ def remove_duplicates():
             ]
         }
 
+        logger.info(f"Removal payload: {removal_payload}")
+
         # Remove duplicates
         response = requests.delete(
             f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
             headers=headers,
             json=removal_payload
         )
+        
+        if not response.ok:
+            logger.error(f"Failed to remove tracks: {response.status_code} - {response.text}")
+            return jsonify({"error": "Failed to remove tracks"}), response.status_code
+            
         response.raise_for_status()
         logger.info(f"Removed {len(positions_to_remove)} duplicate tracks")
 
