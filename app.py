@@ -441,7 +441,7 @@ def recommend_new():
     seed_type = seed_uri.split(":")[1]
     seed_id = seed_uri.split(":")[-1]
     rec_url = f"https://api.spotify.com/v1/recommendations"
-    if seed_type not in ["track", "artist", "genre"]:
+if seed_type not in ["track", "artist", "genre"]:
     return jsonify({"error": "Unsupported seed type"}), 400
 
     recs = requests.get(rec_url, headers=headers, params=params).json()
