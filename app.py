@@ -338,7 +338,7 @@ def recreate_playlist():
             search_res = requests.get(search_url, headers=headers, params=params).json()
 if "error" in search_res:
     print("Ошибка поиска:", search_res["error"])
-            found_tracks = search_res.get("tracks", {}).get("items", [])
+        found_tracks = search_res.get("tracks", {}).get("items", [])
             if found_tracks:
                 tracks.append(found_tracks[0]["uri"])
         url = res.get("next")
