@@ -30,6 +30,34 @@ REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/c
 class TokenStorage:
     def __init__(self):
         self._tokens = {}
+        self._load_tokens()
+    
+    def _load_tokens(self):
+        try:
+            if os.path.exists('tokens.json'):
+                with open('tokens.json', 'r') as f:
+                    data = json.load(f)
+                    for user_id, token_data in data.items():
+                        # Convert string timestamp back to datetime
+                        token_data['expires_at'] = datetime.fromisoformat(token_data['expires_at'])
+                        self._tokens[user_id] = token_data
+        except Exception as e:
+            logger.error(f"Error loading tokens: {str(e)}")
+    
+    def _save_tokens(self):
+        try:
+            data = {}
+            for user_id, token_data in self._tokens.items():
+                # Convert datetime to string for JSON serialization
+                data[user_id] = {
+                    'access_token': token_data['access_token'],
+                    'refresh_token': token_data['refresh_token'],
+                    'expires_at': token_data['expires_at'].isoformat()
+                }
+            with open('tokens.json', 'w') as f:
+                json.dump(data, f)
+        except Exception as e:
+            logger.error(f"Error saving tokens: {str(e)}")
     
     def set_tokens(self, user_id, access_token, refresh_token, expires_in=3600):
         self._tokens[user_id] = {
@@ -37,14 +65,15 @@ class TokenStorage:
             "refresh_token": refresh_token,
             "expires_at": datetime.now() + timedelta(seconds=expires_in)
         }
+        self._save_tokens()
     
     def get_tokens(self, user_id):
         if user_id not in self._tokens:
             return None
         
         tokens = self._tokens[user_id]
-        if datetime.now() >= tokens["expires_at"]:
-            # Token expired, refresh it
+        # Refresh token if it's close to expiring (within 5 minutes)
+        if datetime.now() + timedelta(minutes=5) >= tokens["expires_at"]:
             new_tokens = self._refresh_token(user_id, tokens["refresh_token"])
             if new_tokens:
                 return new_tokens
@@ -54,6 +83,7 @@ class TokenStorage:
     
     def _refresh_token(self, user_id, refresh_token):
         try:
+            logger.info(f"Refreshing token for user {user_id}")
             response = requests.post(
                 "https://accounts.spotify.com/api/token",
                 data={
@@ -69,9 +99,10 @@ class TokenStorage:
             self.set_tokens(
                 user_id,
                 data["access_token"],
-                refresh_token,
+                refresh_token,  # Keep the same refresh token
                 data.get("expires_in", 3600)
             )
+            logger.info(f"Successfully refreshed token for user {user_id}")
             return self._tokens[user_id]
         except Exception as e:
             logger.error(f"Error refreshing token for user {user_id}: {str(e)}")
@@ -341,27 +372,70 @@ def find_duplicates():
 
 @app.route("/remove-duplicates", methods=["POST"])
 def remove_duplicates():
-    data = request.get_json()
-    user_id = data.get("user_id")
-    playlist_id = data.get("playlist_id")
-    uris = data.get("uris", [])
+    try:
+        data = request.get_json()
+        user_id = data.get("user_id")
+        playlist_id = data.get("playlist_id")
+        uris = data.get("uris", [])
 
-    if not user_id or not playlist_id or not uris or user_id not in token_storage._tokens:
-        return jsonify({"error": "Missing user_id, playlist_id, uris or user not authorized"}), 400
+        if not user_id or not playlist_id or not uris or user_id not in token_storage._tokens:
+            return jsonify({"error": "Missing user_id, playlist_id, uris or user not authorized"}), 400
 
-    access_token = token_storage._tokens[user_id]["access_token"]
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
+        tokens = token_storage.get_tokens(user_id)
+        if not tokens:
+            return jsonify({"error": "User not authorized"}), 401
 
-    payload = {
-        "tracks": [{"uri": uri} for uri in uris]
-    }
+        headers = {
+            "Authorization": f"Bearer {tokens['access_token']}",
+            "Content-Type": "application/json"
+        }
 
-    r = requests.delete(f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks", headers=headers, json=payload)
+        # Get all tracks in the playlist
+        tracks = []
+        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        while url:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            tracks.extend(data.get("items", []))
+            url = data.get("next")
 
-    return jsonify({"status": "removed", "response": r.json()})
+        # Create a dictionary to track seen tracks
+        seen = {}
+        duplicates = []
+        for item in tracks:
+            track = item.get("track")
+            if not track:
+                continue
+                
+            key = (track["name"], track["artists"][0]["name"] if track["artists"] else None)
+            if key in seen:
+                duplicates.append({"uri": track["uri"]})
+            else:
+                seen[key] = track["uri"]
+
+        if not duplicates:
+            return jsonify({"message": "No duplicates found"})
+
+        # Remove duplicates in batches of 100
+        for i in range(0, len(duplicates), 100):
+            batch = duplicates[i:i + 100]
+            payload = {"tracks": batch}
+            response = requests.delete(
+                f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+
+        return jsonify({
+            "status": "success",
+            "removed_count": len(duplicates),
+            "message": f"Removed {len(duplicates)} duplicate tracks while keeping one copy of each"
+        })
+    except Exception as e:
+        logger.error(f"Error removing duplicates: {str(e)}")
+        return jsonify({"error": "Failed to remove duplicates"}), 500
 
 @app.route("/shuffle-smart", methods=["POST"])
 @require_auth
@@ -419,38 +493,92 @@ def shuffle_smart():
 
 @app.route("/generate-playlist", methods=["POST"])
 def generate_playlist():
-    data = request.get_json()
-    user_id = data.get("user_id")
-    seed_uris = data.get("seeds", [])  # могут быть треки, артисты, жанры
-    name = data.get("name", "Generated Playlist")
+    try:
+        data = request.get_json()
+        user_id = data.get("user_id")
+        seed_uris = data.get("seeds", [])
+        name = data.get("name", "Generated Playlist")
 
-    if not user_id or not seed_uris or user_id not in token_storage._tokens:
-        return jsonify({"error": "Missing user_id or seeds, or user not authorized"}), 400
+        if not user_id or not seed_uris:
+            return jsonify({"error": "Missing user_id or seeds"}), 400
 
-    access_token = token_storage._tokens[user_id]["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+        tokens = token_storage.get_tokens(user_id)
+        if not tokens:
+            return jsonify({"error": "User not authorized"}), 401
 
-    rec_params = {
-        "limit": 30,
-        "seed_tracks": ",".join([s.split(":")[-1] for s in seed_uris if "track" in s])
-    }
-    r = requests.get("https://api.spotify.com/v1/recommendations", headers=headers, params=rec_params)
-    tracks = r.json().get("tracks", [])
-    track_uris = [t["uri"] for t in tracks]
+        headers = {
+            "Authorization": f"Bearer {tokens['access_token']}",
+            "Content-Type": "application/json"
+        }
 
-    # создаём новый плейлист
-    user_profile = requests.get("https://api.spotify.com/v1/me", headers=headers).json()
-    create_payload = {
-        "name": name,
-        "description": "Generated by Spotik GPT",
-        "public": False
-    }
-    new_playlist = requests.post(f"https://api.spotify.com/v1/users/{user_profile['id']}/playlists", headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}, json=create_payload).json()
+        # Get user profile
+        me_response = requests.get("https://api.spotify.com/v1/me", headers=headers)
+        me_response.raise_for_status()
+        user_profile = me_response.json()
 
-    # добавляем треки
-    requests.post(f"https://api.spotify.com/v1/playlists/{new_playlist['id']}/tracks", headers=headers, json={"uris": track_uris})
+        # Create new playlist
+        create_payload = {
+            "name": name,
+            "description": "Generated by Spotik GPT",
+            "public": False
+        }
+        create_response = requests.post(
+            f"https://api.spotify.com/v1/users/{user_profile['id']}/playlists",
+            headers=headers,
+            json=create_payload
+        )
+        create_response.raise_for_status()
+        new_playlist = create_response.json()
+        logger.info(f"Created new playlist: {new_playlist['id']}")
 
-    return jsonify({"playlist_id": new_playlist['id'], "name": name, "tracks_added": len(track_uris)})
+        # Get recommendations
+        seed_tracks = [s for s in seed_uris if "track" in s]
+        seed_artists = [s for s in seed_uris if "artist" in s]
+        seed_genres = [s for s in seed_uris if "genre" in s]
+
+        rec_params = {
+            "limit": 30,
+            "seed_tracks": ",".join([s.split(":")[-1] for s in seed_tracks[:5]]),
+            "seed_artists": ",".join([s.split(":")[-1] for s in seed_artists[:2]]),
+            "seed_genres": ",".join([s.split(":")[-1] for s in seed_genres[:2]])
+        }
+
+        rec_response = requests.get(
+            "https://api.spotify.com/v1/recommendations",
+            headers=headers,
+            params=rec_params
+        )
+        rec_response.raise_for_status()
+        tracks = rec_response.json().get("tracks", [])
+        
+        if not tracks:
+            return jsonify({"error": "No recommendations found"}), 404
+
+        # Add tracks to playlist in batches of 100
+        track_uris = [t["uri"] for t in tracks]
+        for i in range(0, len(track_uris), 100):
+            batch = track_uris[i:i + 100]
+            add_response = requests.post(
+                f"https://api.spotify.com/v1/playlists/{new_playlist['id']}/tracks",
+                headers=headers,
+                json={"uris": batch}
+            )
+            add_response.raise_for_status()
+            logger.info(f"Added batch of {len(batch)} tracks to playlist")
+
+        return jsonify({
+            "status": "success",
+            "playlist_id": new_playlist['id'],
+            "name": name,
+            "tracks_added": len(track_uris),
+            "playlist_url": new_playlist['external_urls']['spotify']
+        })
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error in generate_playlist: {str(e)}")
+        return jsonify({"error": "Failed to communicate with Spotify API"}), 503
+    except Exception as e:
+        logger.error(f"Error in generate_playlist: {str(e)}")
+        return jsonify({"error": "Failed to generate playlist"}), 500
 
 @app.route("/profile")
 def musical_profile():
