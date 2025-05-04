@@ -13,7 +13,7 @@ REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/c
 TOKENS = {}
 
 def refresh_access_token(user_id):
-    refresh_token = TOKENS[user_id]["refresh_token"]
+    # Duplicate function removed here
     response = requests.post("https://accounts.spotify.com/api/token", data={
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
@@ -31,7 +31,7 @@ def refresh_access_token(user_id):
 
 
 def refresh_access_token(user_id):
-    refresh_token = TOKENS[user_id]["refresh_token"]
+    # Duplicate function removed here
     response = requests.post("https://accounts.spotify.com/api/token", data={
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
