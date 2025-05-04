@@ -1,6 +1,7 @@
 from flask import Flask, redirect, request, session, jsonify
 import requests
 import os
+import re
 from urllib.parse import urlencode
 
 app = Flask(__name__)
@@ -10,6 +11,13 @@ CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/callback")
 TOKENS = {}
+
+def extract_playlist_id(input_str):
+    # Если это ссылка, вытащим ID плейлиста из неё
+    match = re.search(r"playlist/([a-zA-Z0-9]+)", input_str)
+    if match:
+        return match.group(1)
+    return input_str  # если это уже ID
 
 SCOPES = "user-read-private playlist-modify-public playlist-modify-private playlist-read-private user-library-read user-top-read"
 
@@ -213,7 +221,8 @@ def find_duplicates():
 def remove_duplicates():
     data = request.get_json()
     user_id = data.get("user_id")
-    playlist_id = data.get("playlist_id")
+    playlist_id_raw = data.get("playlist_id")
+    playlist_id = extract_playlist_id(playlist_id_raw)
     uris = data.get("uris", [])
 
     if not user_id or not playlist_id or not uris or user_id not in TOKENS:
