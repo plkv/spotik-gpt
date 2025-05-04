@@ -430,10 +430,18 @@ def remove_duplicates():
         positions_to_remove.sort(reverse=True)
         
         # Create the removal payload
+        # Spotify API expects positions to be relative to the current state
+        # So we need to adjust positions after each removal
+        adjusted_positions = []
+        for pos in positions_to_remove:
+            # Count how many positions we've already removed that are after this one
+            adjustment = sum(1 for p in adjusted_positions if p > pos)
+            adjusted_positions.append(pos - adjustment)
+
         removal_payload = {
             "tracks": [
-                {"uri": tracks[pos]["track"]["uri"], "positions": [pos]}
-                for pos in positions_to_remove
+                {"uri": tracks[pos]["track"]["uri"], "positions": [adjusted_positions[i]]}
+                for i, pos in enumerate(positions_to_remove)
             ]
         }
 
