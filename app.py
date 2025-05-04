@@ -399,31 +399,22 @@ def remove_duplicates():
             tracks.extend(data.get("items", []))
             url = data.get("next")
 
-        logger.info(f"Found {len(tracks)} total tracks in playlist")
-
         # Find duplicates while keeping first occurrence
-        seen = {}  # Dictionary to store first occurrence position
+        seen = {}
         duplicates = []
-        for i, item in enumerate(tracks):
+        for item in tracks:
             track = item.get("track")
             if not track:
                 continue
                 
             key = (track["name"], track["artists"][0]["name"] if track["artists"] else None)
             if key in seen:
-                # This is a duplicate, add to removal list
                 duplicates.append({"uri": track["uri"]})
-                logger.info(f"Found duplicate: {track['name']} by {track['artists'][0]['name']}")
             else:
-                # First time seeing this track, store its position
-                seen[key] = i
-                logger.info(f"Keeping track: {track['name']} by {track['artists'][0]['name']}")
+                seen[key] = True
 
         if not duplicates:
-            logger.info("No duplicates found in playlist")
             return jsonify({"message": "No duplicates found"})
-
-        logger.info(f"Found {len(duplicates)} duplicates to remove")
 
         # Remove duplicates
         response = requests.delete(
@@ -432,7 +423,6 @@ def remove_duplicates():
             json={"tracks": duplicates}
         )
         response.raise_for_status()
-        logger.info(f"Removed {len(duplicates)} duplicate tracks")
 
         return jsonify({
             "status": "success",
@@ -440,12 +430,8 @@ def remove_duplicates():
             "remaining_tracks": len(tracks) - len(duplicates),
             "message": f"Removed {len(duplicates)} duplicate tracks while keeping one copy of each"
         })
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error in remove_duplicates: {str(e)}")
-        return jsonify({"error": "Failed to communicate with Spotify API"}), 503
     except Exception as e:
-        logger.error(f"Error in remove_duplicates: {str(e)}")
-        return jsonify({"error": "Failed to remove duplicates"}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/shuffle-smart", methods=["POST"])
 @require_auth
