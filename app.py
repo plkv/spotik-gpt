@@ -69,6 +69,22 @@ def get_me(user_id):
     r = requests.get("https://api.spotify.com/v1/me", headers=headers)
     return jsonify(r.json())
 
+@app.route("/top-tracks")
+def top_tracks():
+    user_id = request.args.get("user_id")
+    if not user_id or user_id not in TOKENS:
+        return jsonify({"error": "User not authorized"}), 401
+
+    access_token = TOKENS[user_id]["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {
+        "limit": 10,
+        "time_range": request.args.get("range", "medium_term")  # short_term, medium_term, long_term
+    }
+
+    r = requests.get("https://api.spotify.com/v1/me/top/tracks", headers=headers, params=params)
+    return jsonify(r.json())
+
 @app.route("/health")
 def health():
     return "OK", 200
