@@ -114,9 +114,19 @@ def login():
 def callback():
     try:
         code = request.args.get("code")
+        error = request.args.get("error")
+        
+        logger.info(f"Callback received. Code present: {bool(code)}, Error: {error}")
+        
+        if error:
+            logger.error(f"Error in Spotify authorization: {error}")
+            return jsonify({"error": f"Authorization failed: {error}"}), 400
+            
         if not code:
+            logger.error("Missing authorization code")
             return jsonify({"error": "Missing authorization code"}), 400
 
+        logger.info("Requesting access token from Spotify")
         response = requests.post(
             "https://accounts.spotify.com/api/token",
             data={
@@ -127,12 +137,24 @@ def callback():
                 "client_secret": CLIENT_SECRET
             }
         )
-        response.raise_for_status()
+        
+        if not response.ok:
+            logger.error(f"Token request failed: {response.status_code} - {response.text}")
+            return jsonify({"error": "Failed to get access token"}), response.status_code
+            
+        logger.info("Successfully received token response")
         data = response.json()
 
         headers = {"Authorization": f"Bearer {data['access_token']}"}
-        me = requests.get("https://api.spotify.com/v1/me", headers=headers).json()
+        me_response = requests.get("https://api.spotify.com/v1/me", headers=headers)
+        
+        if not me_response.ok:
+            logger.error(f"Failed to get user profile: {me_response.status_code} - {me_response.text}")
+            return jsonify({"error": "Failed to get user profile"}), me_response.status_code
+            
+        me = me_response.json()
         user_id = me["id"]
+        logger.info(f"Successfully got user profile for {user_id}")
 
         token_storage.set_tokens(
             user_id,
@@ -140,14 +162,18 @@ def callback():
             data["refresh_token"],
             data.get("expires_in", 3600)
         )
+        logger.info("Tokens stored successfully")
 
         return f"""
         ✅ Authorization successful!<br>
         user_id: <b>{user_id}</b><br>
         You can now use the GPT agent!
         """
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error during callback: {str(e)}")
+        return jsonify({"error": "Network error during authorization"}), 503
     except Exception as e:
-        logger.error(f"Error in callback: {str(e)}")
+        logger.error(f"Unexpected error in callback: {str(e)}")
         return jsonify({"error": "Authorization failed"}), 500
 
 @app.route("/health")

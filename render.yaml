@@ -3,7 +3,7 @@ services:
     name: spotik-gpt
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --log-level debug
     envVars:
       - key: SPOTIFY_CLIENT_ID
         sync: false
@@ -17,3 +17,7 @@ services:
         value: app.py
       - key: SECRET_KEY
         generateValue: true
+      - key: PYTHONUNBUFFERED
+        value: "true"
+      - key: LOG_LEVEL
+        value: "DEBUG"
