@@ -6,12 +6,9 @@ from urllib.parse import urlencode
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# Spotify App Credentials (должны быть в Render Environment)
 CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/callback")
-
-# Словарь токенов по user_id
 TOKENS = {}
 
 SCOPES = "user-read-private playlist-modify-public playlist-modify-private playlist-read-private user-library-read user-top-read"
@@ -42,12 +39,10 @@ def callback():
     access_token = data.get("access_token")
     refresh_token = data.get("refresh_token")
 
-    # Получаем user_id
     headers = {"Authorization": f"Bearer {access_token}"}
     me = requests.get("https://api.spotify.com/v1/me", headers=headers).json()
     user_id = me["id"]
 
-    # Сохраняем токены
     TOKENS[user_id] = {
         "access_token": access_token,
         "refresh_token": refresh_token
@@ -69,6 +64,69 @@ def get_me(user_id):
     r = requests.get("https://api.spotify.com/v1/me", headers=headers)
     return jsonify(r.json())
 
+@app.route("/playlists")
+def playlists():
+    user_id = request.args.get("user_id")
+    if not user_id or user_id not in TOKENS:
+        return jsonify({"error": "User not authorized"}), 401
+
+    access_token = TOKENS[user_id]["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    playlists = []
+    url = "https://api.spotify.com/v1/me/playlists"
+
+    while url:
+        r = requests.get(url, headers=headers)
+        data = r.json()
+        playlists.extend(data.get("items", []))
+        url = data.get("next")
+
+    simplified = [
+        {
+            "name": p["name"],
+            "id": p["id"],
+            "tracks": p["tracks"]["total"],
+            "owner": p["owner"]["display_name"],
+            "followers": p.get("followers", {}).get("total", None)
+        } for p in playlists
+    ]
+
+    return jsonify(simplified)
+
+@app.route("/top-playlists")
+def top_playlists():
+    user_id = request.args.get("user_id")
+    if not user_id or user_id not in TOKENS:
+        return jsonify({"error": "User not authorized"}), 401
+
+    access_token = TOKENS[user_id]["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    playlists = []
+    url = "https://api.spotify.com/v1/me/playlists"
+
+    while url:
+        r = requests.get(url, headers=headers)
+        data = r.json()
+        playlists.extend(data.get("items", []))
+        url = data.get("next")
+
+    # Сортировка по количеству фолловеров
+    sorted_playlists = sorted(
+        [p for p in playlists if p.get("followers")],
+        key=lambda x: x["followers"]["total"], reverse=True
+    )
+
+    top_10 = [
+        {
+            "name": p["name"],
+            "id": p["id"],
+            "tracks": p["tracks"]["total"],
+            "followers": p["followers"]["total"]
+        } for p in sorted_playlists[:10]
+    ]
+
+    return jsonify(top_10)
+
 @app.route("/top-tracks")
 def top_tracks():
     user_id = request.args.get("user_id")
@@ -79,7 +137,7 @@ def top_tracks():
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {
         "limit": 10,
-        "time_range": request.args.get("range", "medium_term")  # short_term, medium_term, long_term
+        "time_range": request.args.get("range", "medium_term")
     }
 
     r = requests.get("https://api.spotify.com/v1/me/top/tracks", headers=headers, params=params)
@@ -88,7 +146,6 @@ def top_tracks():
 @app.route("/health")
 def health():
     return "OK", 200
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
