@@ -2,6 +2,12 @@ services:
   - type: web
     name: spotik-gpt
     env: python
-    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
+    envVars:
+      - key: SPOTIFY_CLIENT_ID
+        value: your-client-id-here
+      - key: SPOTIFY_CLIENT_SECRET
+        value: your-client-secret-here
+      - key: REDIRECT_URI
+        value: https://spotik-gpt.onrender.com/callback
