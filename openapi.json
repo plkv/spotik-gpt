@@ -2,7 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Spotik GPT API",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "description": "A Spotify integration API that provides enhanced playlist management and music recommendations"
   },
   "servers": [
     {
@@ -13,59 +14,59 @@
     "/playlists": {
       "get": {
         "operationId": "getPlaylists",
-        "summary": "Получить все плейлисты пользователя",
+        "summary": "Get all user playlists",
         "parameters": [
           { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Список плейлистов" } }
+        "responses": { "200": { "description": "List of playlists" } }
       }
     },
     "/top-playlists": {
       "get": {
         "operationId": "getTopPlaylists",
-        "summary": "Топ плейлисты по сохранениям",
+        "summary": "Get top playlists by followers",
         "parameters": [
           { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Топ плейлисты" } }
+        "responses": { "200": { "description": "Top playlists" } }
       }
     },
     "/saved-playlists": {
       "get": {
         "operationId": "getSavedPlaylists",
-        "summary": "Чужие сохранённые плейлисты",
+        "summary": "Get saved playlists from other users",
         "parameters": [
           { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Список чужих плейлистов" } }
+        "responses": { "200": { "description": "List of saved playlists" } }
       }
     },
     "/top-tracks": {
       "get": {
         "operationId": "getTopTracks",
-        "summary": "Топ треки пользователя",
+        "summary": "Get user's top tracks",
         "parameters": [
           { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } },
-          { "name": "range", "in": "query", "required": false, "schema": { "type": "string" } }
+          { "name": "range", "in": "query", "required": false, "schema": { "type": "string", "enum": ["short_term", "medium_term", "long_term"] } }
         ],
-        "responses": { "200": { "description": "Топ треки" } }
+        "responses": { "200": { "description": "Top tracks" } }
       }
     },
     "/duplicates": {
       "get": {
         "operationId": "findDuplicates",
-        "summary": "Поиск дублей в плейлисте",
+        "summary": "Find duplicate tracks in a playlist",
         "parameters": [
           { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } },
           { "name": "playlist_id", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Список дублей" } }
+        "responses": { "200": { "description": "List of duplicate tracks" } }
       }
     },
     "/remove-duplicates": {
       "post": {
         "operationId": "removeDuplicates",
-        "summary": "Удалить дубли из плейлиста",
+        "summary": "Remove duplicate tracks from a playlist",
         "requestBody": {
           "required": true,
           "content": {
@@ -85,13 +86,13 @@
             }
           }
         },
-        "responses": { "200": { "description": "Удаление выполнено" } }
+        "responses": { "200": { "description": "Duplicates removed successfully" } }
       }
     },
     "/shuffle-smart": {
       "post": {
         "operationId": "shuffleSmart",
-        "summary": "Перемешать плейлист с умом",
+        "summary": "Smart shuffle playlist based on audio features",
         "requestBody": {
           "required": true,
           "content": {
@@ -107,13 +108,13 @@
             }
           }
         },
-        "responses": { "200": { "description": "Готово" } }
+        "responses": { "200": { "description": "Playlist shuffled successfully" } }
       }
     },
     "/generate-playlist": {
       "post": {
         "operationId": "generatePlaylist",
-        "summary": "Создать плейлист на основе треков",
+        "summary": "Create a new playlist based on seed tracks",
         "requestBody": {
           "required": true,
           "content": {
@@ -133,34 +134,34 @@
             }
           }
         },
-        "responses": { "200": { "description": "Плейлист создан" } }
+        "responses": { "200": { "description": "Playlist created successfully" } }
       }
     },
     "/profile": {
       "get": {
         "operationId": "getProfile",
-        "summary": "Музыкальный профиль",
+        "summary": "Get user's musical profile",
         "parameters": [
           { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Профиль по музыке" } }
+        "responses": { "200": { "description": "User's musical profile" } }
       }
     },
     "/compare-users": {
       "get": {
         "operationId": "compareUsers",
-        "summary": "Сравнение двух пользователей",
+        "summary": "Compare musical preferences between two users",
         "parameters": [
           { "name": "user1", "in": "query", "required": true, "schema": { "type": "string" } },
           { "name": "user2", "in": "query", "required": true, "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Совместимость" } }
+        "responses": { "200": { "description": "Musical compatibility analysis" } }
       }
     },
     "/recommend-new": {
       "post": {
         "operationId": "recommendNew",
-        "summary": "Рекомендовать новое на основе трека/альбома",
+        "summary": "Get music recommendations based on a track/album",
         "requestBody": {
           "required": true,
           "content": {
@@ -176,7 +177,7 @@
             }
           }
         },
-        "responses": { "200": { "description": "Рекомендации" } }
+        "responses": { "200": { "description": "Music recommendations" } }
       }
     }
   }

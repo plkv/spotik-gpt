@@ -3,11 +3,17 @@ services:
     name: spotik-gpt
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    startCommand: gunicorn app:app
     envVars:
       - key: SPOTIFY_CLIENT_ID
-        value: your-client-id-here
+        sync: false
       - key: SPOTIFY_CLIENT_SECRET
-        value: your-client-secret-here
+        sync: false
       - key: REDIRECT_URI
-        value: https://spotik-gpt.onrender.com/callback
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_APP
+        value: app.py
+      - key: SECRET_KEY
+        generateValue: true
