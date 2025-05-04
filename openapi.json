@@ -1,0 +1,50 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Spotik GPT API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://spotik-gpt.onrender.com"
+    }
+  ],
+  "paths": {
+    "/top-tracks": {
+      "get": {
+        "operationId": "getTopTracks",
+        "summary": "Получить топ треки пользователя",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Spotify user ID, полученный после авторизации"
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["short_term", "medium_term", "long_term"],
+              "default": "medium_term"
+            },
+            "description": "Период прослушивания: короткий, средний, длинный"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список треков",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}
