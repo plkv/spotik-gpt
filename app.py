@@ -263,8 +263,8 @@ def recreate_playlist():
         for item in items:
             track = item.get("track")
             if not track:
-            print("Пропущен трек:", item)
-            continue
+                print("Пропущен трек:", item)
+                continue
             name = track.get("name")
             artist = track["artists"][0]["name"] if track.get("artists") else ""
             query = f"track:{name} artist:{artist}"
