@@ -13,6 +13,22 @@ REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://spotik-gpt.onrender.com/c
 TOKENS = {}
 
 def extract_playlist_id(input_str):
+
+def refresh_access_token(user_id):
+    refresh_token = TOKENS[user_id]["refresh_token"]
+    response = requests.post("https://accounts.spotify.com/api/token", data={
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET
+    })
+    data = response.json()
+    access_token = data.get("access_token")
+    if access_token:
+        TOKENS[user_id]["access_token"] = access_token
+        return access_token
+    return None
+
     match = re.search(r"playlist/([a-zA-Z0-9]+)", input_str)
     if match:
         return match.group(1)
@@ -47,6 +63,10 @@ def callback():
     refresh_token = data.get("refresh_token")
 
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     me = requests.get("https://api.spotify.com/v1/me", headers=headers).json()
     user_id = me["id"]
 
@@ -68,6 +88,10 @@ def get_me(user_id):
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     r = requests.get("https://api.spotify.com/v1/me", headers=headers)
     return jsonify(r.json())
 
@@ -79,6 +103,10 @@ def playlists():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     playlists = []
     url = "https://api.spotify.com/v1/me/playlists"
 
@@ -108,6 +136,10 @@ def top_playlists():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     playlists = []
     url = "https://api.spotify.com/v1/me/playlists"
 
@@ -141,6 +173,10 @@ def saved_playlists():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     playlists = []
     url = "https://api.spotify.com/v1/me/playlists"
 
@@ -169,6 +205,10 @@ def top_tracks():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     params = {
         "limit": 10,
         "time_range": request.args.get("range", "medium_term")
@@ -186,6 +226,10 @@ def find_duplicates():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     tracks = []
     url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
 
@@ -253,6 +297,10 @@ def recreate_playlist():
     playlist_id = extract_playlist_id(playlist_input)
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
 
     # Получим треки из оригинального плейлиста
     url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
@@ -263,16 +311,16 @@ def recreate_playlist():
         for item in items:
             track = item.get("track")
             if not track:
-                print("Пропущен трек:", item)
-                continue
+            print("Пропущен трек:", item)
+            continue
             name = track.get("name")
             artist = track["artists"][0]["name"] if track.get("artists") else ""
             query = f"track:{name} artist:{artist}"
             search_url = "https://api.spotify.com/v1/search"
             params = {"q": query, "type": "track", "limit": 1}
             search_res = requests.get(search_url, headers=headers, params=params).json()
-            if "error" in search_res:
-                print("Ошибка поиска:", search_res["error"])
+if "error" in search_res:
+    print("Ошибка поиска:", search_res["error"])
             found_tracks = search_res.get("tracks", {}).get("items", [])
             if found_tracks:
                 tracks.append(found_tracks[0]["uri"])
@@ -317,6 +365,10 @@ def shuffle_smart():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
 
     all_tracks = []
@@ -355,6 +407,10 @@ def generate_playlist():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
 
     rec_params = {
         "limit": 30,
@@ -386,6 +442,10 @@ def musical_profile():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
     top_artists = requests.get("https://api.spotify.com/v1/me/top/artists?limit=10&time_range=long_term", headers=headers).json().get("items", [])
     top_tracks = requests.get("https://api.spotify.com/v1/me/top/tracks?limit=10&time_range=long_term", headers=headers).json().get("items", [])
 
@@ -413,6 +473,10 @@ def compare_users():
 
     def get_top(user_id):
         access_token = TOKENS[user_id]["access_token"]
+        headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
         headers = {"Authorization": f"Bearer {access_token}"}
         artists = requests.get("https://api.spotify.com/v1/me/top/artists?limit=20", headers=headers).json().get("items", [])
         tracks = requests.get("https://api.spotify.com/v1/me/top/tracks?limit=20", headers=headers).json().get("items", [])
@@ -450,6 +514,10 @@ def recommend_new():
 
     access_token = TOKENS[user_id]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+    test_res = requests.get("https://api.spotify.com/v1/me", headers=headers)
+    if test_res.status_code == 401:
+        access_token = refresh_access_token(user_id)
+        headers = {"Authorization": f"Bearer {access_token}"}
 
     # Получим все URI из всех плейлистов пользователя
     all_uris = set()
