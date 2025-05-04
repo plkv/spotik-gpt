@@ -401,20 +401,22 @@ def remove_duplicates():
 
         logger.info(f"Found {len(tracks)} total tracks in playlist")
 
-        # Find duplicates
-        seen = set()
+        # Find duplicates while keeping first occurrence
+        seen = {}  # Dictionary to store first occurrence position
         duplicates = []
-        for item in tracks:
+        for i, item in enumerate(tracks):
             track = item.get("track")
             if not track:
                 continue
                 
             key = (track["name"], track["artists"][0]["name"] if track["artists"] else None)
             if key in seen:
+                # This is a duplicate, add to removal list
                 duplicates.append({"uri": track["uri"]})
                 logger.info(f"Found duplicate: {track['name']} by {track['artists'][0]['name']}")
             else:
-                seen.add(key)
+                # First time seeing this track, store its position
+                seen[key] = i
                 logger.info(f"Keeping track: {track['name']} by {track['artists'][0]['name']}")
 
         if not duplicates:
