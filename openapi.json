@@ -10,40 +10,173 @@
     }
   ],
   "paths": {
+    "/playlists": {
+      "get": {
+        "operationId": "getPlaylists",
+        "summary": "Получить все плейлисты пользователя",
+        "parameters": [
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Список плейлистов" } }
+      }
+    },
+    "/top-playlists": {
+      "get": {
+        "operationId": "getTopPlaylists",
+        "summary": "Топ плейлисты по сохранениям",
+        "parameters": [
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Топ плейлисты" } }
+      }
+    },
+    "/saved-playlists": {
+      "get": {
+        "operationId": "getSavedPlaylists",
+        "summary": "Чужие сохранённые плейлисты",
+        "parameters": [
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Список чужих плейлистов" } }
+      }
+    },
     "/top-tracks": {
       "get": {
         "operationId": "getTopTracks",
-        "summary": "Получить топ треки пользователя",
+        "summary": "Топ треки пользователя",
         "parameters": [
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Spotify user ID, полученный после авторизации"
-          },
-          {
-            "name": "range",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": ["short_term", "medium_term", "long_term"],
-              "default": "medium_term"
-            },
-            "description": "Период прослушивания: короткий, средний, длинный"
-          }
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "range", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
-        "responses": {
-          "200": {
-            "description": "Список треков",
-            "content": {
-              "application/json": {}
+        "responses": { "200": { "description": "Топ треки" } }
+      }
+    },
+    "/duplicates": {
+      "get": {
+        "operationId": "findDuplicates",
+        "summary": "Поиск дублей в плейлисте",
+        "parameters": [
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "playlist_id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Список дублей" } }
+      }
+    },
+    "/remove-duplicates": {
+      "post": {
+        "operationId": "removeDuplicates",
+        "summary": "Удалить дубли из плейлиста",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "string" },
+                  "playlist_id": { "type": "string" },
+                  "uris": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                },
+                "required": ["user_id", "playlist_id", "uris"]
+              }
             }
           }
-        }
+        },
+        "responses": { "200": { "description": "Удаление выполнено" } }
+      }
+    },
+    "/shuffle-smart": {
+      "post": {
+        "operationId": "shuffleSmart",
+        "summary": "Перемешать плейлист с умом",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "string" },
+                  "playlist_id": { "type": "string" }
+                },
+                "required": ["user_id", "playlist_id"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Готово" } }
+      }
+    },
+    "/generate-playlist": {
+      "post": {
+        "operationId": "generatePlaylist",
+        "summary": "Создать плейлист на основе треков",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "string" },
+                  "seeds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "name": { "type": "string" }
+                },
+                "required": ["user_id", "seeds"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Плейлист создан" } }
+      }
+    },
+    "/profile": {
+      "get": {
+        "operationId": "getProfile",
+        "summary": "Музыкальный профиль",
+        "parameters": [
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Профиль по музыке" } }
+      }
+    },
+    "/compare-users": {
+      "get": {
+        "operationId": "compareUsers",
+        "summary": "Сравнение двух пользователей",
+        "parameters": [
+          { "name": "user1", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "user2", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Совместимость" } }
+      }
+    },
+    "/recommend-new": {
+      "post": {
+        "operationId": "recommendNew",
+        "summary": "Рекомендовать новое на основе трека/альбома",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "string" },
+                  "seed_uri": { "type": "string" }
+                },
+                "required": ["user_id", "seed_uri"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Рекомендации" } }
       }
     }
   }
